@@ -287,239 +287,269 @@
   </div>
 
   <script>
-    // MASUKKAN URL GOOGLE APPS SCRIPT WEB APP ANDA DI SINI
-    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxaid0ubj7gYgReqXBTSg1JgyV8Q85qo73F_UsRRdSp7SBRA2WU1hEs9i61olgFTy2k/exec";
+  // 1. TEMPELKAN URL DEPLOYMENT GOOGLE APPS SCRIPT ANDA DI SINI
+  const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxMAiIGfcuo7GaMamUXhRKzUeC5id_J_8T3Ug5JhYjClVJLGC_G5TmY_e7x5JtjjeDe/exec"; // Ganti dengan URL Deployment Anda
 
-    let state = {
-      lahans: [
-        { id: 1, nama: 'Lahan Utama 01', komoditas: 'Padi Hibrida', luas: '1.2 Ha', tanam: '2026-01-10', status: 'Vegetatif' }
-      ],
-      pengeluarans: [
-        { id: 101, lahanId: 1, fase: 'Pre-Tanam', kategori: 'Sewa/Olah Tanah', ket: 'Traktor & Pembajakan Lahan', biaya: 1200000, tgl: '2026-01-05' },
-        { id: 102, lahanId: 1, fase: 'Pre-Tanam', kategori: 'Bibit', ket: 'Benih Unggul 25kg', biaya: 450000, tgl: '2026-01-08' },
-        { id: 103, lahanId: 1, fase: 'Vegetatif', kategori: 'Pupuk', ket: 'Pupuk Urea & NPK Susulan', biaya: 850000, tgl: '2026-01-25' }
-      ],
-      panens: []
-    };
+  // Data diawali dalam kondisi KOSONG
+  let state = {
+    lahans: [],
+    pengeluarans: [],
+    panens: []
+  };
 
-    window.onload = function() {
-      checkLoginSession();
-      loadSavedData();
-      renderAll();
-      lucide.createIcons();
-    };
-
-    function checkLoginSession() {
-      const isLogged = localStorage.getItem('taniflow_logged_in');
-      const overlay = document.getElementById('loginOverlay');
-      if (isLogged === 'true') {
-        overlay.classList.add('hidden');
-      } else {
-        overlay.classList.remove('hidden');
-      }
-    }
-
-    function handleLogin(e) {
-      e.preventDefault();
-      const user = document.getElementById('username').value;
-      const pass = document.getElementById('password').value;
-      const err = document.getElementById('loginError');
-
-      if (user === 'taniflow' && pass === 'taniflow') {
-        localStorage.setItem('taniflow_logged_in', 'true');
-        document.getElementById('loginOverlay').classList.add('hidden');
-        err.classList.add('hidden');
-      } else {
-        err.classList.remove('hidden');
-      }
-    }
-
-    function handleLogout() {
-      localStorage.removeItem('taniflow_logged_in');
-      document.getElementById('username').value = '';
-      document.getElementById('password').value = '';
-      document.getElementById('loginOverlay').classList.remove('hidden');
-    }
-
-    function loadSavedData() {
-      const local = localStorage.getItem('taniflow_db');
-      if (local) {
-        try { state = JSON.parse(local); } catch(e){}
-      }
-    }
-
-    function saveData() {
-      localStorage.setItem('taniflow_db', JSON.stringify(state));
+  window.onload = function() {
+    checkLoginSession();
+    // Bersihkan data bekas dummy lokal
+    localStorage.removeItem('taniflow_db'); 
+    
+    if (GAS_WEB_APP_URL && GAS_WEB_APP_URL.startsWith('http')) {
+      document.getElementById('gasStatus').innerText = "Terkoneksi Google Sheets";
+      document.getElementById('gasStatus').className = "text-xs font-semibold text-emerald-600";
+      loadDataFromGAS();
+    } else {
       renderAll();
     }
+    lucide.createIcons();
+  };
 
-    function formatRp(val) {
-      return 'Rp ' + Number(val).toLocaleString('id-ID');
+  function checkLoginSession() {
+    const isLogged = localStorage.getItem('taniflow_logged_in');
+    const overlay = document.getElementById('loginOverlay');
+    if (isLogged === 'true') {
+      overlay.classList.add('hidden');
+    } else {
+      overlay.classList.remove('hidden');
+    }
+  }
+
+  function handleLogin(e) {
+    e.preventDefault();
+    const user = document.getElementById('username').value;
+    const pass = document.getElementById('password').value;
+    const err = document.getElementById('loginError');
+
+    if (user === 'taniflow' && pass === 'taniflow') {
+      localStorage.setItem('taniflow_logged_in', 'true');
+      document.getElementById('loginOverlay').classList.add('hidden');
+      err.classList.add('hidden');
+    } else {
+      err.classList.remove('hidden');
+    }
+  }
+
+  function handleLogout() {
+    localStorage.removeItem('taniflow_logged_in');
+    document.getElementById('username').value = '';
+    document.getElementById('password').value = '';
+    document.getElementById('loginOverlay').classList.remove('hidden');
+  }
+
+  function loadDataFromGAS() {
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+      google.script.run.withSuccessHandler(function(res) {
+        if (res) {
+          state.lahans = res.lahans || [];
+          state.pengeluarans = res.pengeluarans || [];
+          state.panens = res.panens || [];
+          renderAll();
+        }
+      }).getAllData();
+    } else {
+      fetch(GAS_WEB_APP_URL + "?action=getAllData")
+        .then(res => res.json())
+        .then(res => {
+          if (res && res.data) {
+            state.lahans = res.data.lahans || [];
+            state.pengeluarans = res.data.pengeluarans || [];
+            state.panens = res.data.panens || [];
+            renderAll();
+          }
+        })
+        .catch(err => {
+          console.log("Error mengambil data:", err);
+          renderAll();
+        });
+    }
+  }
+
+  function formatRp(val) {
+    return 'Rp ' + Number(val).toLocaleString('id-ID');
+  }
+
+  function renderAll() {
+    renderDashboard();
+    renderPengeluaran();
+    renderLahan();
+    renderPanen();
+    populateSelects();
+  }
+
+  function renderDashboard() {
+    const totalModal = state.pengeluarans.reduce((acc, curr) => acc + Number(curr.biaya), 0);
+    const totalPanen = state.panens.reduce((acc, curr) => acc + (Number(curr.hasil) * Number(curr.harga)), 0);
+    const totalHasilKg = state.panens.reduce((acc, curr) => acc + Number(curr.hasil), 0);
+    const netProfit = totalPanen - totalModal;
+    const roi = totalModal > 0 ? ((netProfit / totalModal) * 100).toFixed(1) : 0;
+
+    document.getElementById('dashTotalModal').innerText = formatRp(totalModal);
+    document.getElementById('dashTotalPanen').innerText = formatRp(totalPanen);
+    document.getElementById('dashNetProfit').innerText = formatRp(netProfit);
+    document.getElementById('dashTotalHasil').innerText = totalHasilKg + ' Kg';
+    document.getElementById('dashROI').innerText = roi + '%';
+  }
+
+  function renderPengeluaran() {
+    const container = document.getElementById('listPengeluaran');
+    if (!state.pengeluarans || state.pengeluarans.length === 0) {
+      container.innerHTML = `<div class="p-4 text-center text-xs text-slate-400 bg-white rounded-xl">Belum ada rincian biaya. Silakan tambah data.</div>`;
+      return;
     }
 
-    function renderAll() {
-      renderDashboard();
-      renderPengeluaran();
-      renderLahan();
-      renderPanen();
-      populateSelects();
-    }
-
-    function renderDashboard() {
-      const totalModal = state.pengeluarans.reduce((acc, curr) => acc + Number(curr.biaya), 0);
-      const totalPanen = state.panens.reduce((acc, curr) => acc + (Number(curr.hasil) * Number(curr.harga)), 0);
-      const totalHasilKg = state.panens.reduce((acc, curr) => acc + Number(curr.hasil), 0);
-      const netProfit = totalPanen - totalModal;
-      const roi = totalModal > 0 ? ((netProfit / totalModal) * 100).toFixed(1) : 0;
-
-      document.getElementById('dashTotalModal').innerText = formatRp(totalModal);
-      document.getElementById('dashTotalPanen').innerText = formatRp(totalPanen);
-      document.getElementById('dashNetProfit').innerText = formatRp(netProfit);
-      document.getElementById('dashTotalHasil').innerText = totalHasilKg + ' Kg';
-      document.getElementById('dashROI').innerText = roi + '%';
-    }
-
-    function renderPengeluaran() {
-      const container = document.getElementById('listPengeluaran');
-      if (state.pengeluarans.length === 0) {
-        container.innerHTML = `<div class="p-4 text-center text-xs text-slate-400 bg-white rounded-xl">Belum ada rincian biaya.</div>`;
-        return;
-      }
-
-      container.innerHTML = state.pengeluarans.map(item => {
-        const lahan = state.lahans.find(l => l.id == item.lahanId);
-        return `
-          <div class="bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between">
-            <div class="space-y-1">
-              <div class="flex items-center space-x-2">
-                <span class="px-2 py-0.5 bg-emerald-50 text-emerald-700 font-bold text-[10px] rounded-md border border-emerald-100">${item.fase}</span>
-                <span class="text-xs font-bold text-slate-800">${item.ket}</span>
-              </div>
-              <p class="text-[11px] text-slate-500">${lahan ? lahan.nama : 'Lahan'} • ${item.kategori} • ${item.tgl}</p>
+    container.innerHTML = state.pengeluarans.map(item => {
+      const lahan = state.lahans.find(l => l.id == item.lahanId);
+      return `
+        <div class="bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between">
+          <div class="space-y-1">
+            <div class="flex items-center space-x-2">
+              <span class="px-2 py-0.5 bg-emerald-50 text-emerald-700 font-bold text-[10px] rounded-md border border-emerald-100">${item.fase}</span>
+              <span class="text-xs font-bold text-slate-800">${item.ket}</span>
             </div>
-            <div class="text-right">
-              <p class="text-xs font-extrabold text-rose-600">-${formatRp(item.biaya)}</p>
-            </div>
+            <p class="text-[11px] text-slate-500">${lahan ? lahan.nama : 'Lahan'} • ${item.kategori} • ${item.tgl}</p>
           </div>
-        `;
-      }).join('');
-    }
-
-    function renderLahan() {
-      const container = document.getElementById('listLahan');
-      container.innerHTML = state.lahans.map(item => `
-        <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between">
-          <div>
-            <h4 class="text-sm font-bold text-slate-800">${item.nama}</h4>
-            <p class="text-xs text-slate-500 mt-0.5">Komoditas: <strong>${item.komoditas}</strong> (${item.luas})</p>
-            <p class="text-[11px] text-slate-400 mt-1">Mulai Tanam: ${item.tanam}</p>
+          <div class="text-right">
+            <p class="text-xs font-extrabold text-rose-600">-${formatRp(item.biaya)}</p>
           </div>
-          <span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 font-semibold text-xs rounded-full">${item.status || 'Aktif'}</span>
         </div>
-      `).join('');
+      `;
+    }).join('');
+  }
+
+  function renderLahan() {
+    const container = document.getElementById('listLahan');
+    if (!state.lahans || state.lahans.length === 0) {
+      container.innerHTML = `<div class="p-4 text-center text-xs text-slate-400 bg-white rounded-xl">Belum ada data lahan. Klik "+ Tambah Lahan".</div>`;
+      return;
     }
 
-    function renderPanen() {
-      const container = document.getElementById('listPanen');
-      if (state.panens.length === 0) {
-        container.innerHTML = `<div class="p-4 text-center text-xs text-slate-400 bg-white rounded-xl">Belum ada transaksi panen.</div>`;
-        return;
-      }
+    container.innerHTML = state.lahans.map(item => `
+      <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between">
+        <div>
+          <h4 class="text-sm font-bold text-slate-800">${item.nama}</h4>
+          <p class="text-xs text-slate-500 mt-0.5">Komoditas: <strong>${item.komoditas}</strong> (${item.luas})</p>
+          <p class="text-[11px] text-slate-400 mt-1">Mulai Tanam: ${item.tanam}</p>
+        </div>
+        <span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 font-semibold text-xs rounded-full">${item.status || 'Aktif'}</span>
+      </div>
+    `).join('');
+  }
 
-      container.innerHTML = state.panens.map(item => {
-        const total = Number(item.hasil) * Number(item.harga);
-        return `
-          <div class="bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between">
-            <div>
-              <h4 class="text-xs font-bold text-slate-800">${item.hasil} Kg @ ${formatRp(item.harga)}</h4>
-              <p class="text-[11px] text-slate-500">Tgl Panen: ${item.tgl}</p>
-            </div>
-            <p class="text-xs font-extrabold text-emerald-600">+${formatRp(total)}</p>
+  function renderPanen() {
+    const container = document.getElementById('listPanen');
+    if (!state.panens || state.panens.length === 0) {
+      container.innerHTML = `<div class="p-4 text-center text-xs text-slate-400 bg-white rounded-xl">Belum ada transaksi panen.</div>`;
+      return;
+    }
+
+    container.innerHTML = state.panens.map(item => {
+      const total = Number(item.hasil) * Number(item.harga);
+      return `
+        <div class="bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between">
+          <div>
+            <h4 class="text-xs font-bold text-slate-800">${item.hasil} Kg @ ${formatRp(item.harga)}</h4>
+            <p class="text-[11px] text-slate-500">Tgl Panen: ${item.tgl}</p>
           </div>
-        `;
-      }).join('');
-    }
+          <p class="text-xs font-extrabold text-emerald-600">+${formatRp(total)}</p>
+        </div>
+      `;
+    }).join('');
+  }
 
-    function populateSelects() {
-      const options = state.lahans.map(l => `<option value="${l.id}">${l.nama} (${l.komoditas})</option>`).join('');
-      document.getElementById('pLahanId').innerHTML = options;
-      document.getElementById('panLahanId').innerHTML = options;
+  function populateSelects() {
+    if (!state.lahans || state.lahans.length === 0) {
+      const emptyOpt = `<option value="">-- Buat Lahan Terlebih Dahulu --</option>`;
+      document.getElementById('pLahanId').innerHTML = emptyOpt;
+      document.getElementById('panLahanId').innerHTML = emptyOpt;
+      return;
     }
+    const options = state.lahans.map(l => `<option value="${l.id}">${l.nama} (${l.komoditas})</option>`).join('');
+    document.getElementById('pLahanId').innerHTML = options;
+    document.getElementById('panLahanId').innerHTML = options;
+  }
 
-    function switchTab(tab) {
-      ['pengeluaran', 'lahan', 'panen'].forEach(t => {
-        document.getElementById(`view${t.charAt(0).toUpperCase() + t.slice(1)}`).classList.add('hidden');
-        document.getElementById(`tabBtn${t.charAt(0).toUpperCase() + t.slice(1)}`).className = "flex-1 py-2 rounded-lg text-slate-600 transition";
-      });
-      document.getElementById(`view${tab.charAt(0).toUpperCase() + tab.slice(1)}`).classList.remove('hidden');
-      document.getElementById(`tabBtn${tab.charAt(0).toUpperCase() + tab.slice(1)}`).className = "flex-1 py-2 rounded-lg bg-white shadow-sm text-emerald-700 font-bold transition";
+  function switchTab(tab) {
+    ['pengeluaran', 'lahan', 'panen'].forEach(t => {
+      document.getElementById(`view${t.charAt(0).toUpperCase() + t.slice(1)}`).classList.add('hidden');
+      document.getElementById(`tabBtn${t.charAt(0).toUpperCase() + t.slice(1)}`).className = "flex-1 py-2 rounded-lg text-slate-600 transition";
+    });
+    document.getElementById(`view${tab.charAt(0).toUpperCase() + tab.slice(1)}`).classList.remove('hidden');
+    document.getElementById(`tabBtn${tab.charAt(0).toUpperCase() + tab.slice(1)}`).className = "flex-1 py-2 rounded-lg bg-white shadow-sm text-emerald-700 font-bold transition";
+  }
+
+  function openModalPengeluaran() { document.getElementById('modalPengeluaran').classList.remove('hidden'); }
+  function openModalLahan() { document.getElementById('modalLahan').classList.remove('hidden'); }
+  function openModalPanen() { document.getElementById('modalPanen').classList.remove('hidden'); }
+  function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+  function savePengeluaran(e) {
+    e.preventDefault();
+    const newItem = {
+      id: Date.now(),
+      lahanId: document.getElementById('pLahanId').value,
+      fase: document.getElementById('pFase').value,
+      kategori: document.getElementById('pKategori').value,
+      ket: document.getElementById('pKet').value,
+      biaya: Number(document.getElementById('pBiaya').value),
+      tgl: document.getElementById('pTgl').value
+    };
+    state.pengeluarans.unshift(newItem);
+    renderAll();
+    closeModal('modalPengeluaran');
+    sendToGAS('savePengeluaran', newItem);
+  }
+
+  function saveLahan(e) {
+    e.preventDefault();
+    const newItem = {
+      id: Date.now(),
+      nama: document.getElementById('lNama').value,
+      komoditas: document.getElementById('lKomoditas').value,
+      luas: document.getElementById('lLuas').value,
+      tanam: document.getElementById('lTanam').value,
+      status: 'Vegetatif'
+    };
+    state.lahans.unshift(newItem);
+    renderAll();
+    closeModal('modalLahan');
+    sendToGAS('saveLahan', newItem);
+  }
+
+  function savePanen(e) {
+    e.preventDefault();
+    const newItem = {
+      id: Date.now(),
+      lahanId: document.getElementById('panLahanId').value,
+      hasil: Number(document.getElementById('panHasil').value),
+      harga: Number(document.getElementById('panHarga').value),
+      tgl: document.getElementById('panTgl').value
+    };
+    state.panens.unshift(newItem);
+    renderAll();
+    closeModal('modalPanen');
+    sendToGAS('savePanen', newItem);
+  }
+
+  function sendToGAS(action, data) {
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+      google.script.run[action](data);
+    } else if (GAS_WEB_APP_URL && GAS_WEB_APP_URL.startsWith('http')) {
+      fetch(GAS_WEB_APP_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: action, data: data })
+      }).catch(err => console.log(err));
     }
-
-    function openModalPengeluaran() { document.getElementById('modalPengeluaran').classList.remove('hidden'); }
-    function openModalLahan() { document.getElementById('modalLahan').classList.remove('hidden'); }
-    function openModalPanen() { document.getElementById('modalPanen').classList.remove('hidden'); }
-    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
-
-    function savePengeluaran(e) {
-      e.preventDefault();
-      const newItem = {
-        id: Date.now(),
-        lahanId: document.getElementById('pLahanId').value,
-        fase: document.getElementById('pFase').value,
-        kategori: document.getElementById('pKategori').value,
-        ket: document.getElementById('pKet').value,
-        biaya: Number(document.getElementById('pBiaya').value),
-        tgl: document.getElementById('pTgl').value
-      };
-      state.pengeluarans.unshift(newItem);
-      saveData();
-      closeModal('modalPengeluaran');
-      sendToGAS('savePengeluaran', newItem);
-    }
-
-    function saveLahan(e) {
-      e.preventDefault();
-      const newItem = {
-        id: Date.now(),
-        nama: document.getElementById('lNama').value,
-        komoditas: document.getElementById('lKomoditas').value,
-        luas: document.getElementById('lLuas').value,
-        tanam: document.getElementById('lTanam').value,
-        status: 'Vegetatif'
-      };
-      state.lahans.unshift(newItem);
-      saveData();
-      closeModal('modalLahan');
-      sendToGAS('saveLahan', newItem);
-    }
-
-    function savePanen(e) {
-      e.preventDefault();
-      const newItem = {
-        id: Date.now(),
-        lahanId: document.getElementById('panLahanId').value,
-        hasil: Number(document.getElementById('panHasil').value),
-        harga: Number(document.getElementById('panHarga').value),
-        tgl: document.getElementById('panTgl').value
-      };
-      state.panens.unshift(newItem);
-      saveData();
-      closeModal('modalPanen');
-      sendToGAS('savePanen', newItem);
-    }
-
-    function sendToGAS(action, data) {
-      if (typeof google !== 'undefined' && google.script && google.script.run) {
-        google.script.run[action](data);
-      } else if (GAS_WEB_APP_URL && GAS_WEB_APP_URL.startsWith('http')) {
-        fetch(GAS_WEB_APP_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: action, data: data })
-        }).catch(err => console.log(err));
-      }
-    }
-  </script>
+  }
+</script>
 </body>
 </html>
